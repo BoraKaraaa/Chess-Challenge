@@ -3,21 +3,21 @@ using ChessChallenge.API;
 
 public class MyBot : IChessBot
 {
-    private int[] pieceVals = { 0, 10, 30, 30, 50, 90, 900 };
+    private int[] pieceVals = { 0, 10, 30, 35, 50, 90, 900 };
     
     #region PiecePositionHeuristicValues
 
     private int[] piecePositionalVals = 
     {
         // None
-        - 4, -3, -3, -3, -3, -3, -3, -4,
+        - 4, -4, -4, -3, -3, -4, -4, -4,
         - 4, -4, -4, -3, -3, -4, -4, -4, 
         - 4, -2, -1, -1, -1, -1, -2, -4,
         - 4, -2, -1, -0, -0, -1, -2, -4,
         - 4, -2, -1, -0, -0, -1, -2, -4,
         - 4, -2, -1, -1, -1, -1, -2, -4,
         - 4, -4, -4, -3, -3, -4, -4, -4,
-        - 4, -3, -3, -3, -3, -3, -3, -4
+        - 4, -4, -4, -3, -3, -4, -4, -4
     };
 
     #endregion
@@ -128,7 +128,7 @@ public class MyBot : IChessBot
 
         if (localBoard.IsInCheckmate())
         {
-            if (localBoard.IsWhiteToMove != localIsWhite)
+            if (IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite)
             {
                 return MAX_VAL-10;
             }
@@ -138,8 +138,22 @@ public class MyBot : IChessBot
 
         if (localBoard.IsInCheck())
         {
-            isCheck = true;
-            totalHeuristicVal += 3;
+            // Maybe if is redundant
+            if (IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite)
+            {
+                isCheck = true;
+                totalHeuristicVal += 3;
+            }
+        }
+        
+        if (moveNode.Move.IsPromotion)
+        {
+            totalHeuristicVal += IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite ? 70 : -70;
+        }
+
+        if (moveNode.Move.IsCastles)
+        {
+            totalHeuristicVal += IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite ? 15 : -15;
         }
 
         PieceList[] piecesList = localBoard.GetAllPieceLists();
@@ -154,25 +168,11 @@ public class MyBot : IChessBot
                 {
                     if (IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite)
                     {
-                        if (pawn.IsWhite)
-                        {
-                            totalHeuristicVal += pawn.Square.Index / 8;
-                        }
-                        else
-                        {
-                            totalHeuristicVal += 8 - pawn.Square.Index / 8;
-                        }
+                        totalHeuristicVal += pawn.IsWhite ? pawn.Square.Index / 8 : 8 - pawn.Square.Index / 8;
                     }
                     else
                     {
-                        if (pawn.IsWhite)
-                        {
-                            totalHeuristicVal -= pawn.Square.Index / 8;
-                        }
-                        else
-                        {
-                            totalHeuristicVal -= 8 - pawn.Square.Index / 8;
-                        }
+                        totalHeuristicVal -= pawn.IsWhite ? pawn.Square.Index / 8 : 8 - pawn.Square.Index / 8;
                     }
                 }
             }
@@ -180,7 +180,7 @@ public class MyBot : IChessBot
             {
                 if (localBoard.PlyCount < 8)
                 {
-                    totalHeuristicVal -= 10;
+                    totalHeuristicVal += IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite ? -10 : 10;
                 }
             }
             
@@ -206,32 +206,23 @@ public class MyBot : IChessBot
             blackPiecesBitboard = localBoard.BlackPiecesBitboard;
         }
 
+        // Refactor here
         for (int i = 63; i >= 0; i--)
         {
             if (IsWhitePlayingByDepth(moveNode.Depth))
             {
                 if (((whitePiecesBitboard >> i) & 1) == 1)
                 {
-                    totalHeuristicVal += piecePositionalVals[i];
+                    totalHeuristicVal += localIsWhite ? piecePositionalVals[i] : -piecePositionalVals[i];
                 }
             }
             else
             {
                 if (((blackPiecesBitboard >> i) & 1) == 1)
                 {
-                    totalHeuristicVal += piecePositionalVals[i];
+                    totalHeuristicVal += !localIsWhite ? piecePositionalVals[i] : -piecePositionalVals[i];
                 }   
             }
-        }
-        
-        if (moveNode.Move.IsPromotion)
-        {
-            totalHeuristicVal += 50;
-        }
-
-        if (moveNode.Move.IsCastles)
-        {
-            totalHeuristicVal += 25;
         }
 
         if (localBoard.IsDraw())
@@ -342,6 +333,4 @@ public class MyBot : IChessBot
         
         return localMoveNode;
     }
-
-
 }
