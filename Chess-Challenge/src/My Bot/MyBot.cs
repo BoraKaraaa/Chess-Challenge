@@ -130,10 +130,10 @@ public class MyBot : IChessBot
         {
             if (localBoard.IsWhiteToMove != localIsWhite)
             {
-                return MAX_VAL-1;
+                return MAX_VAL-10;
             }
 
-            return MIN_VAL+1;
+            return MIN_VAL+10;
         }
 
         if (localBoard.IsInCheck())
@@ -141,13 +141,49 @@ public class MyBot : IChessBot
             isCheck = true;
             totalHeuristicVal += 3;
         }
-        
+
         PieceList[] piecesList = localBoard.GetAllPieceLists();
 
         foreach (var pieceList in piecesList)
         {
             Piece firstPiece = pieceList.GetPiece(0);
 
+            if (firstPiece.PieceType == PieceType.Pawn)
+            {
+                foreach (var pawn in pieceList)
+                {
+                    if (IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite)
+                    {
+                        if (pawn.IsWhite)
+                        {
+                            totalHeuristicVal += pawn.Square.Index / 8;
+                        }
+                        else
+                        {
+                            totalHeuristicVal += 8 - pawn.Square.Index / 8;
+                        }
+                    }
+                    else
+                    {
+                        if (pawn.IsWhite)
+                        {
+                            totalHeuristicVal -= pawn.Square.Index / 8;
+                        }
+                        else
+                        {
+                            totalHeuristicVal -= 8 - pawn.Square.Index / 8;
+                        }
+                    }
+                }
+            }
+            else if (firstPiece.PieceType == PieceType.Queen)
+            {
+                if (localBoard.PlyCount < 8)
+                {
+                    totalHeuristicVal -= 10;
+                }
+            }
+            
             if (firstPiece.IsWhite == localIsWhite)
             {
                 totalHeuristicVal += pieceVals[(int)pieceList.GetPiece(0).PieceType] * pieceList.Count;
@@ -187,6 +223,16 @@ public class MyBot : IChessBot
                 }   
             }
         }
+        
+        if (moveNode.Move.IsPromotion)
+        {
+            totalHeuristicVal += 50;
+        }
+
+        if (moveNode.Move.IsCastles)
+        {
+            totalHeuristicVal += 25;
+        }
 
         if (localBoard.IsDraw())
         {
@@ -194,22 +240,22 @@ public class MyBot : IChessBot
             {
                 if (totalHeuristicVal > ABSOLUTE_WIN)
                 {
-                    totalHeuristicVal -= 100;
+                    return -100;
                 }
                 else
                 {
-                    totalHeuristicVal += 100;
+                    return 100;
                 }
             }
             else
             {
                 if (totalHeuristicVal < ABSOLUTE_WIN)
                 {
-                    totalHeuristicVal -= 100;
+                    return -100;
                 }
                 else
                 {
-                    totalHeuristicVal += 100;
+                    return 100;
                 }
             }
         }
@@ -219,10 +265,18 @@ public class MyBot : IChessBot
 
     private MoveNode MiniMax(MoveNode moveNode, int depth, int alpha, int beta, bool maximizingPlayer)
     {
-        if (depth == 0 || localBoard.IsInCheckmate() || localBoard.IsDraw())
+        bool isCheckMate = localBoard.IsInCheckmate();
+        
+        if (depth == 0 || isCheckMate || localBoard.IsDraw())
         {
             moveNode.HeuristicVal = CalculatePositionValue(moveNode, out bool isCheck);
 
+            if (isCheckMate)
+            {
+                moveNode.HeuristicVal += depth;
+                return moveNode;
+            }
+            
             if (!isCheck)
             {
                 return moveNode; 
