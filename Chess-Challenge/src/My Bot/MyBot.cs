@@ -12,10 +12,10 @@ public class MyBot : IChessBot
         // None
         - 4, -4, -4, -3, -3, -4, -4, -4,
         - 4, -4, -4, -3, -3, -4, -4, -4, 
-        - 4, -2, -1, -1, -1, -1, -2, -4,
+        - 4, -2, -1, -2, -2, -1, -2, -4,
         - 4, -2, -1, -0, -0, -1, -2, -4,
         - 4, -2, -1, -0, -0, -1, -2, -4,
-        - 4, -2, -1, -1, -1, -1, -2, -4,
+        - 4, -2, -1, -2, -2, -1, -2, -4,
         - 4, -4, -4, -3, -3, -4, -4, -4,
         - 4, -4, -4, -3, -3, -4, -4, -4
     };
@@ -27,7 +27,7 @@ public class MyBot : IChessBot
         public Move Move;
         public MoveNode ParentMoveNode;
         public MoveNode[] ChildMoves; 
-        public int HeuristicVal;
+        public int HeuristicVal = 0;
         public int Depth;
         
         public MoveNode() { }
@@ -47,7 +47,7 @@ public class MyBot : IChessBot
     private const int MAX_VAL = 9999999;
     private const int MIN_VAL = -9999999;
 
-    private const int ABSOLUTE_WIN = 100;
+    private const int ABSOLUTE_WIN = 30;
 
     public Move Think(Board board, Timer timer)
     {
@@ -60,7 +60,7 @@ public class MyBot : IChessBot
     private Move CalculateNdepthMoves(int depth)
     {
         MoveNode rootMove = new MoveNode(null, new MoveNode(), new Move(),
-            MIN_VAL, 0);
+            0, 0);
         
         MoveNode resMoveNode = MiniMax(rootMove, depth, MIN_VAL, MAX_VAL, true);
 
@@ -86,7 +86,9 @@ public class MyBot : IChessBot
         for (int i = 0; i < captureMoves.Length; i++)
         {
             MoveNode childNode = new MoveNode(null, parentMoveNode, captureMoves[i], 
-                MIN_VAL, parentMoveNode.Depth+1);
+                parentMoveNode.ParentMoveNode.HeuristicVal, parentMoveNode.Depth+1);
+
+            childNode.HeuristicVal += CalculatePreHeuristicValue(childNode);
             
             parentMoveNode.ChildMoves[i] = childNode;
             lastIndex = i+1;
@@ -108,8 +110,10 @@ public class MyBot : IChessBot
             if (!sameMoveIncluded)
             {
                 MoveNode childNode = new MoveNode(null, parentMoveNode, legalMoves[i], 
-                    MIN_VAL, parentMoveNode.Depth+1);
-            
+                    parentMoveNode.ParentMoveNode.HeuristicVal, parentMoveNode.Depth+1);
+
+                childNode.HeuristicVal += CalculatePreHeuristicValue(childNode);
+                
                 parentMoveNode.ChildMoves[lastIndex++] = childNode;
             }
         }
@@ -119,10 +123,35 @@ public class MyBot : IChessBot
     {
         return localIsWhite ? depth % 2 == 1 : depth % 2 == 0;
     }
+
+    private int CalculatePreHeuristicValue(MoveNode moveNode)
+    {
+        int preHeuristicVal = 0;
+        
+        if (moveNode.Move.IsPromotion)
+        {
+            preHeuristicVal += IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite ? 60 : -60;
+        }
+        
+        if (moveNode.Move.IsCastles)
+        {
+            preHeuristicVal += IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite ? 15 : -15;
+        }
+
+        if (moveNode.Move.MovePieceType == PieceType.Queen)
+        {
+            if (localBoard.PlyCount < 8)
+            {
+                preHeuristicVal += IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite ? -15 : 15;
+            }
+        }
+        
+        return preHeuristicVal;
+    }
     
     private int CalculatePositionValue(MoveNode moveNode, out bool isCheck)
     {
-        int totalHeuristicVal = 0;
+        int totalHeuristicVal = moveNode.HeuristicVal;
         
         isCheck = false;
 
@@ -145,16 +174,6 @@ public class MyBot : IChessBot
                 totalHeuristicVal += 3;
             }
         }
-        
-        if (moveNode.Move.IsPromotion)
-        {
-            totalHeuristicVal += IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite ? 70 : -70;
-        }
-
-        if (moveNode.Move.IsCastles)
-        {
-            totalHeuristicVal += IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite ? 15 : -15;
-        }
 
         PieceList[] piecesList = localBoard.GetAllPieceLists();
 
@@ -176,14 +195,7 @@ public class MyBot : IChessBot
                     }
                 }
             }
-            else if (firstPiece.PieceType == PieceType.Queen)
-            {
-                if (localBoard.PlyCount < 8)
-                {
-                    totalHeuristicVal += IsWhitePlayingByDepth(moveNode.Depth) == localIsWhite ? -10 : 10;
-                }
-            }
-            
+
             if (firstPiece.IsWhite == localIsWhite)
             {
                 totalHeuristicVal += pieceVals[(int)pieceList.GetPiece(0).PieceType] * pieceList.Count;
@@ -233,10 +245,9 @@ public class MyBot : IChessBot
                 {
                     return -100;
                 }
-                else
-                {
-                    return 100;
-                }
+
+                return 100;
+                
             }
             else
             {
@@ -244,21 +255,23 @@ public class MyBot : IChessBot
                 {
                     return -100;
                 }
-                else
-                {
-                    return 100;
-                }
+
+                return 100;
+                
             }
         }
 
         return totalHeuristicVal;
     }
 
+    private int maxDepth = 2;
+    
     private MoveNode MiniMax(MoveNode moveNode, int depth, int alpha, int beta, bool maximizingPlayer)
     {
         bool isCheckMate = localBoard.IsInCheckmate();
+        bool isDraw = localBoard.IsDraw();
         
-        if (depth == 0 || isCheckMate || localBoard.IsDraw())
+        if (depth == 0 || isCheckMate || isDraw)
         {
             moveNode.HeuristicVal = CalculatePositionValue(moveNode, out bool isCheck);
 
@@ -267,17 +280,22 @@ public class MyBot : IChessBot
                 moveNode.HeuristicVal += depth;
                 return moveNode;
             }
+
+            if (isDraw)
+            {
+                return moveNode;
+            }
             
             if (!isCheck)
             {
-                return moveNode; 
+                return moveNode;
             }
 
             depth = 1;
         }
 
         GenerateChildrenMoveNodes(moveNode);
-        
+
         MoveNode localMoveNode = new MoveNode();
         
         if (maximizingPlayer)
