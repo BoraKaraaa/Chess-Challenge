@@ -4,12 +4,9 @@ using ChessChallenge.API;
 public class MyBot : IChessBot
 {
     private int[] pieceVals = { 0, 10, 30, 35, 50, 90, 900 };
-    
-    #region PiecePositionHeuristicValues
 
     private int[] piecePositionalVals = 
     {
-        // None
         - 4, -4, -4, -3, -3, -4, -4, -4,
         - 4, -4, -4, -3, -3, -4, -4, -4, 
         - 4, -2, -1, -2, -2, -1, -2, -4,
@@ -19,8 +16,6 @@ public class MyBot : IChessBot
         - 4, -4, -4, -3, -3, -4, -4, -4,
         - 4, -4, -4, -3, -3, -4, -4, -4
     };
-
-    #endregion
 
     private class MoveNode
     {
@@ -263,8 +258,6 @@ public class MyBot : IChessBot
 
         return totalHeuristicVal;
     }
-
-    private int maxDepth = 2;
     
     private MoveNode MiniMax(MoveNode moveNode, int depth, int alpha, int beta, bool maximizingPlayer)
     {
